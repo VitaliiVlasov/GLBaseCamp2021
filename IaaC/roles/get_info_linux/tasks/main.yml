@@ -1,0 +1,8 @@
+---
+- name: Fetch a Linux distro name/version and hostname
+  debug:
+    mgs = "{{ item }}"
+  with_items:
+    - "{{ ansible_facts['nodename'] }}"
+    - "{{ ansible_facts['distribution'] }}"
+    - "{{ ansible_facts['distribution_version'] }}"

@@ -1,0 +1,6 @@
+---
+- name: Create empty file
+  file:
+    path: "{{ file_name }}"
+    state: touch
+    mode: "{{ file_mode }}"
