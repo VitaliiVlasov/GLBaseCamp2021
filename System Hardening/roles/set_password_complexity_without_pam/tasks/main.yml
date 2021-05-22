@@ -1,0 +1,18 @@
+---
+- name: Replace line
+  lineinfile:
+    path: /etc/pam.d/common-password
+    regexp: '^password\s+requisite\s+pam_pwquality.so'
+    line: 'password requisite pam_pwquality.so {{ directives }}'
+    backrefs: yes
+  when:
+    - ansible_facts['os_family'] == "Debian"
+
+- name: Replace line
+  lineinfile:
+    path: /etc/pam.d/system-auth
+    regexp: '^password\s+requisite\s+pam_pwquality.so'
+    line: 'password requisite pam_pwquality.so {{ directives }}'
+    backrefs: yes
+  when:
+    - ansible_facts['os_family'] == "RedHat"

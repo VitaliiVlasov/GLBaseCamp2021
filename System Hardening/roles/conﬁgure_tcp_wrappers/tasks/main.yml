@@ -1,0 +1,10 @@
+---
+- name: Add rule to hosts.allow
+  lineinfile:
+    path: /etc/hosts.allow
+    line: 'sshd: LOCAL {{ my_host }}'
+
+- name: Add rule to hosts.deny
+  lineinfile:
+    path: /etc/hosts.deny
+    line: 'sshd: ALL'
