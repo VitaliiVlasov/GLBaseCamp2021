@@ -1,7 +1,3 @@
-data "aws_availability_zones" "available" {
-  state = "available"
-}
-
 data "aws_ami" "ubuntu" {
   most_recent = true
 
@@ -25,6 +21,8 @@ data "aws_ami" "ubuntu" {
 resource "aws_security_group" "allow_http" {
   name = "allow_http"
   description = "Allow HTTP inbound traffic"
+  vpc_id = aws_default_vpc.main.id
+
 
   ingress {
     description = "HTTP from VPC"
@@ -51,46 +49,76 @@ resource "aws_security_group" "allow_http" {
 }
 
 
+resource "aws_default_vpc" "main" {
+  tags = {
+    Name = "Default VPC"
+  }
+}
+
+resource "aws_subnet" "subnets" {
+  count = length(var.aws_az)
+  vpc_id = aws_default_vpc.main.id
+  cidr_block = "172.31.${count.index + 100}.0/24"
+  availability_zone = element(var.aws_az, count.index)
+  tags = {
+    Name = "Subnet in the ${element(var.aws_az, count.index)}"
+  }
+}
+
 resource "aws_instance" "web" {
   count = 2
   ami = data.aws_ami.ubuntu.id
   instance_type = "t2.micro"
-  availability_zone = data.aws_availability_zones.available.names[count.index]
   user_data = file("script.sh")
   vpc_security_group_ids = [
     aws_security_group.allow_http.id]
+  key_name = "new"
+
+  subnet_id = aws_subnet.subnets[count.index].id
+  associate_public_ip_address = true
   tags = {
-    Name = "HelloWorld"
+    Name = "web_${count.index}"
   }
 }
 
-resource "aws_elb" "bar" {
-  name = "foobar-terraform-elb"
-  availability_zones = data.aws_availability_zones.available.names
-
-  listener {
-    instance_port = 80
-    instance_protocol = "http"
-    lb_port = 80
-    lb_protocol = "http"
-  }
-
-
-  health_check {
-    healthy_threshold = 2
-    unhealthy_threshold = 2
-    timeout = 3
-    target = "HTTP:80/"
-    interval = 30
-  }
-
-  instances = aws_instance.web.*.id
-  cross_zone_load_balancing = true
-  idle_timeout = 400
-  connection_draining = true
-  connection_draining_timeout = 400
+resource "aws_lb" "lb" {
+  name = "test-lb-tf"
+  internal = false
+  load_balancer_type = "network"
+  subnets = aws_subnet.subnets.*.id
 
   tags = {
-    Name = "foobar-terraform-elb"
+    Name = "Web LB"
   }
+}
+
+resource "aws_lb_target_group" "lb_tg" {
+  name = "tf-example-lb-tg"
+  port = 80
+  protocol = "TCP"
+  vpc_id = aws_default_vpc.main.id
+  tags = {
+    Name = "LB target group"
+  }
+}
+
+resource "aws_lb_listener" "lb_listener" {
+  load_balancer_arn = aws_lb.lb.arn
+  port = "80"
+  protocol = "TCP"
+
+  default_action {
+    type = "forward"
+    target_group_arn = aws_lb_target_group.lb_tg.arn
+  }
+  tags = {
+    Name = "LB listener"
+  }
+}
+
+resource "aws_lb_target_group_attachment" "tg_attach" {
+  count = length(aws_instance.web)
+  target_group_arn = aws_lb_target_group.lb_tg.arn
+  target_id = aws_instance.web[count.index].id
+  port = 80
 }
