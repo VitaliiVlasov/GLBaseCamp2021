@@ -4,43 +4,42 @@ data "aws_ami" "ubuntu" {
   filter {
     name = "name"
     values = [
-      "ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"]
+    "ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"]
   }
 
   filter {
     name = "virtualization-type"
     values = [
-      "hvm"]
+    "hvm"]
   }
 
   owners = [
-    "099720109477"]
+  "099720109477"]
   # Canonical
 }
 
 resource "aws_security_group" "allow_http" {
-  name = "allow_http"
+  name        = "allow_http"
   description = "Allow HTTP inbound traffic"
-  vpc_id = aws_default_vpc.main.id
-
+  vpc_id      = aws_vpc.web.id
 
   ingress {
     description = "HTTP from VPC"
-    from_port = 80
-    to_port = 80
-    protocol = "tcp"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
     cidr_blocks = [
-      "0.0.0.0/0"]
+    "0.0.0.0/0"]
   }
 
   egress {
     from_port = 0
-    to_port = 0
-    protocol = "-1"
+    to_port   = 0
+    protocol  = "-1"
     cidr_blocks = [
-      "0.0.0.0/0"]
+    "0.0.0.0/0"]
     ipv6_cidr_blocks = [
-      "::/0"]
+    "::/0"]
   }
 
   tags = {
@@ -48,33 +47,16 @@ resource "aws_security_group" "allow_http" {
   }
 }
 
-
-resource "aws_default_vpc" "main" {
-  tags = {
-    Name = "Default VPC"
-  }
-}
-
-resource "aws_subnet" "subnets" {
-  count = length(var.aws_az)
-  vpc_id = aws_default_vpc.main.id
-  cidr_block = "172.31.${count.index + 100}.0/24"
-  availability_zone = element(var.aws_az, count.index)
-  tags = {
-    Name = "Subnet in the ${element(var.aws_az, count.index)}"
-  }
-}
-
 resource "aws_instance" "web" {
-  count = 2
-  ami = data.aws_ami.ubuntu.id
+  count         = 2
+  ami           = data.aws_ami.ubuntu.id
   instance_type = "t2.micro"
-  user_data = file("script.sh")
+  user_data     = file("script.sh")
   vpc_security_group_ids = [
-    aws_security_group.allow_http.id]
+  aws_security_group.allow_http.id]
   key_name = "new"
 
-  subnet_id = aws_subnet.subnets[count.index].id
+  subnet_id                   = aws_subnet.public_subnet[count.index].id
   associate_public_ip_address = true
   tags = {
     Name = "web_${count.index}"
@@ -82,10 +64,10 @@ resource "aws_instance" "web" {
 }
 
 resource "aws_lb" "lb" {
-  name = "test-lb-tf"
-  internal = false
+  name               = "test-lb-tf"
+  internal           = false
   load_balancer_type = "network"
-  subnets = aws_subnet.subnets.*.id
+  subnets            = aws_subnet.public_subnet.*.id
 
   tags = {
     Name = "Web LB"
@@ -93,10 +75,10 @@ resource "aws_lb" "lb" {
 }
 
 resource "aws_lb_target_group" "lb_tg" {
-  name = "tf-example-lb-tg"
-  port = 80
+  name     = "tf-example-lb-tg"
+  port     = 80
   protocol = "TCP"
-  vpc_id = aws_default_vpc.main.id
+  vpc_id   = aws_vpc.web.id
   tags = {
     Name = "LB target group"
   }
@@ -104,11 +86,11 @@ resource "aws_lb_target_group" "lb_tg" {
 
 resource "aws_lb_listener" "lb_listener" {
   load_balancer_arn = aws_lb.lb.arn
-  port = "80"
-  protocol = "TCP"
+  port              = "80"
+  protocol          = "TCP"
 
   default_action {
-    type = "forward"
+    type             = "forward"
     target_group_arn = aws_lb_target_group.lb_tg.arn
   }
   tags = {
@@ -117,8 +99,8 @@ resource "aws_lb_listener" "lb_listener" {
 }
 
 resource "aws_lb_target_group_attachment" "tg_attach" {
-  count = length(aws_instance.web)
+  count            = length(aws_instance.web)
   target_group_arn = aws_lb_target_group.lb_tg.arn
-  target_id = aws_instance.web[count.index].id
-  port = 80
+  target_id        = aws_instance.web[count.index].id
+  port             = 80
 }
