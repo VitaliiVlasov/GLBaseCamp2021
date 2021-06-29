@@ -54,7 +54,8 @@ resource "aws_instance" "web" {
   user_data     = file("script.sh")
   vpc_security_group_ids = [
   aws_security_group.allow_http.id]
-  key_name = "new"
+  availability_zone = element(var.aws_az, count.index)
+  key_name          = "new"
 
   subnet_id                   = aws_subnet.public_subnet[count.index].id
   associate_public_ip_address = true
@@ -64,10 +65,11 @@ resource "aws_instance" "web" {
 }
 
 resource "aws_lb" "lb" {
-  name               = "test-lb-tf"
-  internal           = false
-  load_balancer_type = "network"
-  subnets            = aws_subnet.public_subnet.*.id
+  name                             = "test-lb-tf"
+  internal                         = false
+  load_balancer_type               = "network"
+  subnets                          = aws_subnet.public_subnet.*.id
+  enable_cross_zone_load_balancing = true
 
   tags = {
     Name = "Web LB"
